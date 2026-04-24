@@ -255,6 +255,49 @@ class HospitalRouter:
             cursor.close()
             db.close()
 
+    # ── 🧍 EDITAR PACIENTE (solo ADMIN) ──────────────────────
+    @staticmethod
+    def editar_paciente(id: int, p: Paciente, token=Depends(verificar_token)):
+        if token["rol"] != "ADMIN":
+            raise HTTPException(status_code=403, detail="Sin permisos")
+        db     = get_db()
+        cursor = db.cursor()
+        try:
+            cursor.execute("SELECT id FROM paciente WHERE id=%s", (id,))
+            if not cursor.fetchone():
+                raise HTTPException(status_code=404, detail="Paciente no existe")
+            # Si cambia el documento, verificar que no lo use otro paciente
+            cursor.execute("SELECT id FROM paciente WHERE documento=%s AND id!=%s", (p.documento, id))
+            if cursor.fetchone():
+                raise HTTPException(status_code=400, detail="El documento ya pertenece a otro paciente")
+            cursor.execute(
+                "UPDATE paciente SET nombre=%s, apellido=%s, documento=%s, diagnostico=%s WHERE id=%s",
+                (p.nombre, p.apellido, p.documento, p.diagnostico, id)
+            )
+            db.commit()
+            return {"mensaje": "Paciente actualizado"}
+        finally:
+            cursor.close()
+            db.close()
+
+    # ── 🧍 ELIMINAR PACIENTE (solo ADMIN) ────────────────────
+    @staticmethod
+    def eliminar_paciente(id: int, token=Depends(verificar_token)):
+        if token["rol"] != "ADMIN":
+            raise HTTPException(status_code=403, detail="Sin permisos")
+        db     = get_db()
+        cursor = db.cursor()
+        try:
+            cursor.execute("SELECT id FROM paciente WHERE id=%s", (id,))
+            if not cursor.fetchone():
+                raise HTTPException(status_code=404, detail="Paciente no existe")
+            cursor.execute("DELETE FROM paciente WHERE id=%s", (id,))
+            db.commit()
+            return {"mensaje": "Paciente eliminado"}
+        finally:
+            cursor.close()
+            db.close()
+
     # ── 🧠 INGRESO / ASIGNAR CAMA (ADMIN + ENFERMERIA) ───────
     @staticmethod
     def asignar(m: Movimiento, token=Depends(verificar_token)):
@@ -437,10 +480,15 @@ router.put("/camas/{id}")                    (h.cambiar_estado)
 router.post("/pacientes")                    (h.crear_paciente)
 router.get("/pacientes")                     (h.obtener_pacientes)
 router.get("/pacientes/{id}")                (h.obtener_paciente)
+router.put("/pacientes/{id}")                (h.editar_paciente)
+router.delete("/pacientes/{id}")             (h.eliminar_paciente)
 router.post("/asignar")                      (h.asignar)
 router.post("/alta")                         (h.alta)
 router.get("/movimientos")                   (h.movimientos)
 router.get("/reporte")                       (h.reporte)
+router.post("/reportes")                     (h.crear_reporte)
+router.get("/reportes")                      (h.obtener_reportes)
+router.get("/reportes/paciente/{id}")        (h.obtener_reportes_paciente)
 router.post("/reportes")                     (h.crear_reporte)
 router.get("/reportes")                      (h.obtener_reportes)
 router.get("/reportes/paciente/{id}")        (h.obtener_reportes_paciente)
